@@ -2,38 +2,4 @@
 
 Command Line tool to Access Object Storage (Amazon S3 or Ceph Object Storage)
 
-Install s3cmd if not available:
-apt install s3cmd or yum install s3cmd
-Configure s3 environment: run $ s3cmd --configure in Linux (For Windows run >python s3cmd --configure) and Fill up following details with s3 accounts AccessKey and SecretKey,
-a. Enter Access Key and secret kay
-b. Zone will be default (If not set up) other wise selected zone
-c. S3 End point will be the access point (For Ex: s3.amazon.com)
-d. Template For Accessing a bucket: <End-point-url>/<Bucket-Name>
-e. All other field will be default values if its values are not set up.
-f. Now save the Configuration
-Cover will list all available data ( objects ) under our
-$ s3cmd la
-Create a bucket
-$ s3cmd mb s3://abc
-List All Available Buckets:
-$ s3cmd ls
-Copy File Into Bucket:
-$ s3cmd put index.html s3://abc
-Copy File Between Buckets:
-$ s3cmd cp s3://abc/a.txt s3://bcd/
-Move File Between Buckets:
-$ s3cmd mv s3://abc/index.html s3://bcd/test.html
-Sync a Local Directory:
-$ s3cmd sync dir1/ s3://linux/
-Removing Files:
-$ s3cmd rm s3://linux/foo
-Empty Entire Bucket:
-$ s3cmd del -r --force s3://linux/
-Remove Bucket
-$ s3cmd rb s3://linux/
-Compress File Before Upload:
-$ cat foobar | gzip -9 | s3cmd put - s3://linuxconfigorg/foobar.gz
-Compress Directory Before upload:
-$ tar cz dir1/ | gzip -9 | s3cmd put - s3://linuxconfigorg/dir1.tar.gz
-Copy a file in local Machine:
-$s3cmd get s3://linuxconfigorg/foobar.gz
+
