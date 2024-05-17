@@ -1,0 +1,93 @@
+S3cmd S3 Sync How-To
+Program S3cmd can transfer files to and from Amazon S3 in two basic modes:
+
+Unconditional transfer — all matching files are uploaded to S3 (put operation) or downloaded back from S3 (get operation). This is similar to a standard unix cp command that also copies whatever it’s told to.
+Conditional transfer — only files that don’t exist at the destination in the same version are transferred by the s3cmd sync command. By default a md5 checksum and file size is compared. This is similar to a unix rsync command, with some exceptions outlined below.
+Filenames handling rules and some other options are common for both these methods.
+Filenames handling rules
+Sync, get and put all support multiple arguments for source files and one argument for destination file or directory (optional in some case of get). The source can be a single file or a directory and there could be multiple sources used in one command. Let’s have these files in our working directory:
+~/demo$ find .
+file0-1.msg
+file0-2.txt
+file0-3.log
+dir1/file1-1.txt
+dir1/file1-2.txt
+dir2/file2-1.log
+dir2/file2-2.txt
+Obviously we can for instance upload one of the files to S3 and give it a different name:
+~/demo$ s3cmd put file0-1.msg s3://s3tools-demo/test-upload.msg
+file0-1.msg -> s3://s3tools-demo/test-upload.msg  [1 of 1]
+We can also upload a directory with --recursive parameter:
+~/demo$ s3cmd put --recursive dir1 s3://s3tools-demo/some/path/
+dir1/file1-1.txt -> s3://s3tools-demo/some/path/dir1/file1-1.txt  [1 of 2]
+dir1/file1-2.txt -> s3://s3tools-demo/some/path/dir1/file1-2.txt  [2 of 2]
+With directories there is one thing to watch out for – you can either upload the directory and its contents or just the contents. It all depends on how you specify the source.
+
+To upload a directory and keep its name on the remote side specify the source without the trailing slash:
+
+~/demo$ s3cmd put -r dir1 s3://s3tools-demo/some/path/
+dir1/file1-1.txt -> s3://s3tools-demo/some/path/dir1/file1-1.txt  [1 of 2]
+dir1/file1-2.txt -> s3://s3tools-demo/some/path/dir1/file1-2.txt  [2 of 2]
+On the other hand to upload just the contents, specify the directory it with a trailing slash:
+
+~/demo$ s3cmd put -r dir1/ s3://s3tools-demo/some/path/
+dir1/file1-1.txt -> s3://s3tools-demo/some/path/file1-1.txt  [1 of 2]
+dir1/file1-2.txt -> s3://s3tools-demo/some/path/file1-2.txt  [2 of 2]
+Important — in both cases just the last part of the path name is taken into account. In the case of dir1 without trailing slash (which would be the same as, say, ~/demo/dir1 in our case) the last part of the path is dir1 and that’s what’s used on the remote side, appended after s3://s3…/path/ to make s3://s3…/path/dir1/….
+
+On the other hand in the case of dir1/ (note the trailing slash), which would be the same as ~/demo/dir1/ (trailing slash again) is actually similar to saying dir1/* – ie expand to the list of the files in dir1. In that case the last part(s) of the path name are the filenames (file1-1.txt and file1-2.txt) without the dir1/ directory name. So the final S3 paths are s3://s3…/path/file1-1.txt and s3://s3…/path/file1-2.txt respectively, both without the dir1/ member in them. I hope it’s clear enough, if not ask in the mailing list or send me a better wording ;-)
+
+The above examples were built around put command. A bit more powerful is sync – the path names handling is the same as was just explained. However the important difference is that sync first checks the list and details of the files already present at the destination, compares with the local files and only uploads the ones that either are not present remotely or have a different size or md5 checksum. If you ran all the above examples you’ll get a similar output to the following one from a sync:
+
+~/demo$ s3cmd sync  ./  s3://s3tools-demo/some/path/
+dir2/file2-1.log -> s3://s3tools-demo/some/path/dir2/file2-1.log  [1 of 2]
+dir2/file2-2.txt -> s3://s3tools-demo/some/path/dir2/file2-2.txt  [2 of 2]
+As you can see only the files that we haven’t uploaded yet, that is those from dir2, were now sync‘ed. Now modify for instance dir1/file1-2.txt and see what happens. In this run we’ll first check with —dry-run to see what would be uploaded. We’ll also add —delete-removed to get a list of files that exist remotely but are no longer present locally (or perhaps just have different names here):
+~/demo$ s3cmd sync --dry-run --delete-removed ~/demo/ s3://s3tools-demo/some/path/
+delete: s3://s3tools-demo/some/path/file1-1.txt
+delete: s3://s3tools-demo/some/path/file1-2.txt
+upload: ~/demo/dir1/file1-2.txt -> s3://s3tools-demo/some/path/dir1/file1-2.txt
+WARNING: Exiting now because of --dry-run
+So there are two files to delete – they’re those that were uploaded without dir1/ prefix in one of the previous examples. And also one file to be uploaded — dir1/file1-2.txt, the file that we’ve just modified.
+
+Sometimes you don’t want to compare checksums and sizes of the remote vs local files and only want to upload those that are new. For that use the —skip-existing option:
+
+~/demo$ s3cmd sync --dry-run --skip-existing --delete-removed ~/demo/ 
+              s3://s3tools-demo/some/path/
+delete: s3://s3tools-demo/some/path/file1-1.txt
+delete: s3://s3tools-demo/some/path/file1-2.txt
+WARNING: Exiting now because of --dry-run
+See? Nothing to upload in this case because dir1/file1-2.txt already exists in S3. With a different content, indeed, but --skip-existing only checks for the file presence, not the content.
+
+Download from S3
+Download from S3 with get and sync works pretty much along the same lines as explained above for upload. All the same rules apply and I’m not going to repeat myself. If in doubts run your command with —dry-run. If still in doubts ask on the mailing list for a help :-)
+
+Filtering with —exclude / —include rules
+Once the list of source files is compiled it is filtered through a set of exclude and include rules, in this order. That’s quite a powerful way to fine tune your uploads or downloads — you can for example instruct s3cmd to backup your home directory but don’t backup the JPG pictures (exclude pattern), except those whose name begins with a capital M and contain a digit. These you want to backup (include pattern).
+
+S3cmd has one exclude list and one include list. Each can hold any number of filename match patterns, for instance in the exclude list the first pattern could be “match all JPG files” and the second one “match all files beginning with letter A” while in the include pattern may be just one pattern (or none or two hundreds) saying “match all GIF files”.
+
+There is a number of options available to put the patterns in these lists.
+
+—exclude / —include — standard shell-style wildcards, enclose them into apostrophes to avoid their expansion by the shell. For example --exclude&nbsp;'x*.jpg' will match x12345.jpg but not abcdef.jpg.
+—rexclude / —rinclude — regular expression version of the above. Much more powerful way to create match patterns. I realise most users have no clue about RegExps, which is sad. Anyway, if you’re one of them and can get by with shell style wildcards just use —exclude/—include and don’t worry about —rexclude/—rinclude. Or read some tutorial on RegExps, such a knowledge will come handy one day, I promise ;-)
+—exclude-from / —rexclude-from / —(r)include-from — Instead of having to supply all the patterns on the command line, write them into a file and pass that file’s name as a parameter to one of these options. For instance --exclude '*.jpg' --exclude '*.gif' is the same as --exclude-from pictures.exclude where pictures.exclude contains these three lines:
+# Hey, comments are allowed here ;-)
+*.jpg
+*.gif
+All these parameters are equal in the sense that a file excluded by a --exclude-from rule can be put back into a game by, say, --rinclude rule.
+
+One example to demonstrate the theory…
+
+~/demo$ s3cmd sync --dry-run --exclude '*.txt' --include 'dir2/*' . s3://s3tools-demo/demo/
+exclude: dir1/file1-1.txt
+exclude: dir1/file1-2.txt
+exclude: file0-2.txt
+upload: ./dir2/file2-1.log -> s3://s3tools-demo/demo/dir2/file2-1.log
+upload: ./dir2/file2-2.txt -> s3://s3tools-demo/demo/dir2/file2-2.txt
+upload: ./file0-1.msg -> s3://s3tools-demo/demo/file0-1.msg
+upload: ./file0-3.log -> s3://s3tools-demo/demo/file0-3.log
+WARNING: Exiting now because of --dry-run
+The line in bold shows a file that has a ,txt extension, ie matches an exclude pattern, but because it also matches the ‘dir2/*’ include pattern it is still scheduled for upload.
+
+This exclude / _include filtering is available for put, get and sync. In the future del, cp and mv will support it as well.
