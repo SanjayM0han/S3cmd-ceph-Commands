@@ -1,0 +1,95 @@
+Simple S3cmd How-To
+The following example demonstrates just the the basic features. However there is much more s3cmd can do. The most popular feature is the S3 sync command. Check out our S3cmd S3 sync how-to for more details.
+
+Register for Amazon AWS / S3
+Go to Amazon S3 homepage, click on the "Sign up for web service" button in the right column and work through the registration. You will have to supply your Credit Card details in order to allow Amazon charge you for S3 usage. At the end you should posses your Access and Secret Keys.
+
+Run s3cmd --configure
+You will be asked for the two keys - copy and paste them from your confirmation email or from your Amazon account page. Be careful when copying them! They are case sensitive and must be entered accurately or you'll keep getting errors about invalid signatures or similar.
+
+You can optionally enter a GPG encryption key that will be used for encrypting your files before sending them to Amazon. Using GPG encryption will protect your data against reading by Amazon staff or anyone who may get access to your them while they're stored at Amazon S3.
+
+Another option to decide about is whether to use HTTPS or HTTP transport for communication with Amazon. HTTPS is an encrypted version of HTTP, protecting your data against eavesdroppers while they're in transit to and from Amazon S3.
+
+Please note: - both the above mentioned forms of encryption are independent on each other and serve a different purpose. While GPG encryption is protects your data against reading while they are stored in Amazon S3, HTTPS protects them only while they're being uploaded to Amazon S3 (or downloaded from). There are pros and cons for each and you are free to select either, or, both or none.
+
+Run s3cmd ls to list all your buckets.
+As you have just started using S3 there are no buckets owned by you as of now. So the output will be empty.
+
+Make a bucket with s3cmd mb s3://my-new-bucket-name
+As mentioned above bucket names must be unique amongst _all_ users of S3. That means the simple names like "test" or "asdf" are already taken and you must make up something more original. I often prefix my bucket names with my e-mail domain name (logix.cz) leading to a bucket name, for instance, 'logix.cz-test':
+
+   ~$ s3cmd mb s3://logix.cz-test
+   Bucket 'logix.cz-test' created
+   
+List your buckets again with s3cmd ls
+Now you should see your freshly created bucket
+
+   ~$ s3cmd ls
+   2007-01-19 01:41  s3://logix.cz-test
+   
+List the contents of the bucket
+   ~$ s3cmd ls s3://logix.cz-test
+   Bucket 'logix.cz-test':
+   ~$ 
+It's empty, indeed.
+
+Upload a file into the bucket
+   ~$ s3cmd put addressbook.xml s3://logix.cz-test/addrbook.xml
+   File 'addressbook.xml' stored as s3://logix.cz-test/addrbook.xml (123456 bytes)
+ 
+Note about ACL (Access control lists) — a file uploaded to Amazon S3 bucket can either be private, that is readable only by you, possessor of the access and secret keys, or public, readable by anyone. Each file uploaded as public is not only accessible using s3cmd but also has a HTTP address, URL, that can be used just like any other URL and accessed for instance by web browsers.
+
+   ~$ s3cmd put --acl-public --guess-mime-type storage.jpg s3://logix.cz-test/storage.jpg
+  File 'storage.jpg' stored as s3://logix.cz-test/storage.jpg (33045 bytes)
+  Public URL of the object is: http://logix.cz-test.s3.amazonaws.com/storage.jpg
+ 
+Now anyone can display the storage.jpg file in their browser. Cool, eh?
+
+Now we can list the bucket contents again
+   ~$ s3cmd ls s3://logix.cz-test
+   Bucket 'logix.cz-test':
+   2008-01-19 01:46       120k  s3://logix.cz-test/addrbook.xml
+   2008-11-14 01:46        32k  s3://logix.cz-test/storage.jpg
+   
+Retrieve the file back and verify that its hasn't been corrupted
+   ~$ s3cmd get s3://logix.cz-test/addrbook.xml addressbook-2.xml
+   Object s3://logix.cz-test/addrbook.xml saved as 'addressbook-2.xml' (123456 bytes)
+
+   ~$ md5sum addressbook.xml addressbook-2.xml
+   39bcb6992e461b269b95b3bda303addf  addressbook.xml
+   39bcb6992e461b269b95b3bda303addf  addressbook-2.xml
+   
+Checksums of the original file matches the one of the retrieved one. Looks like it worked :-)
+
+Clean up: delete the object and remove the bucket
+   ~$ s3cmd rb s3://logix.cz-test
+   ERROR: S3 error: 409 (Conflict): BucketNotEmpty
+   
+Ouch, we can only remove empty buckets!
+
+   ~$ s3cmd del s3://logix.cz-test/addrbook.xml s3://logix.cz-test/storage.jpg
+   Object s3://logix.cz-test/addrbook.xml deleted
+   Object s3://logix.cz-test/storage.jpg deleted
+
+   ~$ s3cmd rb s3://logix.cz-test
+   Bucket 'logix.cz-test' removed
+   
+Ok, ok, I'll put that storage.jpg back up for you ;-)
+
+Other features
+Check out our advanced tutorial:
+
+s3cmd sync how-to describing how to perform rsync to Amazon S3.
+Hints
+The basic usage is as simple as described in the previous section.
+You can increase the level of verbosity with -v option and if you're really keen to know what the program does under its bonet run it with -d to see all 'debugging' output.
+After configuring it with --configure all available options are spitted into your ~/.s3cfg file. It's a text file ready to be modified in your favourite text editor.
+Multiple local files may be specified for s3cmd put operation. In that case the S3 URI should only include the bucket name, not the object part:
+~$ s3cmd put file-* s3://logix.cz-test/
+File 'file-one.txt' stored as s3://logix.cz-test/file-one.txt (4 bytes)
+File 'file-two.txt' stored as s3://logix.cz-test/file-two.txt (4 bytes)
+Alternatively if you specify the object part as well it will be treated as a prefix and all filenames given on the command line will be appended to the prefix making up the object name. However --force option is required in this case:
+~$ s3cmd put --force file-* s3://logix.cz-test/prefixed:
+File 'file-one.txt' stored as s3://logix.cz-test/prefixed:file-one.txt (4 bytes)
+File 'file-two.txt' stored as s3://logix.cz-test/prefixed:file-two.txt (4 bytes)
