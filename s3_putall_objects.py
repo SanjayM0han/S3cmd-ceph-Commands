@@ -14,7 +14,7 @@ session = boto3.Session(
 
 s3 = session.resource('s3', endpoint_url='http://ceph1:8000')
 
-bucket_name = 'kashi-test'
+bucket_name = 'home'
 local_dir = './downloaded_files'  # Local directory containing files and folders to upload
 
 try:
